@@ -17,8 +17,16 @@ type Context struct {
 	//Request
 	Path   string
 	Method string
+	//Params
+	//test/:lang/show->test/go/show   ':': ["lang"]:"go"
+	//test/*lang/show->test/go/show   '*': ["lang"]:"go/show"
+	Params map[string]string
 	//Response
 	StatusCode int
+}
+
+func (c *Context) Param(key string) string {
+	return c.Params[key]
 }
 
 func newContext(w http.ResponseWriter, req *http.Request) *Context {
