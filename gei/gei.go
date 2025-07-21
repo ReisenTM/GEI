@@ -10,24 +10,17 @@ import (
 const LogPrefix = "GEI:"
 
 type HandlerFunc func(ctx *Context)
+
+type RouterGroup struct {
+	prefix     string        //分组前缀
+	middleware []HandlerFunc //中间件
+	parent     *RouterGroup
+	engine     *Engine //RouterGroup也要有engine的功能
+}
 type Engine struct {
-	router *router
-}
-
-// 增加路由
-func (engine *Engine) addRoute(method string, pattern string, handler HandlerFunc) {
-	log.Printf("Route %4s - %s", method, pattern)
-	engine.router.addRoute(method, pattern, handler)
-}
-
-// GET GET请求封装
-func (engine *Engine) GET(pattern string, handler HandlerFunc) {
-	engine.addRoute("GET", pattern, handler)
-}
-
-// POST POST请求封装
-func (engine *Engine) POST(pattern string, handler HandlerFunc) {
-	engine.addRoute("POST", pattern, handler)
+	*RouterGroup //嵌套
+	router       *router
+	groups       []*RouterGroup //储存所有组
 }
 
 // 实现Handler接口
@@ -38,9 +31,42 @@ func (engine *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 // New 创建一个新engine
 func New() *Engine {
-	return &Engine{
+	engine := &Engine{
 		router: newRouter(),
 	}
+	engine.RouterGroup = &RouterGroup{engine: engine}
+	engine.groups = []*RouterGroup{engine.RouterGroup}
+
+	return engine
+}
+
+// Group 创建一个分组路由
+func (group *RouterGroup) Group(prefix string) *RouterGroup {
+	engine := group.engine //全部组共用一个engine
+	newGroup := &RouterGroup{
+		prefix: group.prefix + prefix,
+		parent: group,
+		engine: engine,
+	}
+	engine.groups = append(engine.groups, newGroup)
+	return newGroup
+}
+
+// 创建一个route
+func (group *RouterGroup) addRoute(method string, comp string, handler HandlerFunc) {
+	pattern := group.prefix + comp
+	log.Printf("Route %4s - %s", method, pattern)
+	group.engine.router.addRoute(method, pattern, handler)
+}
+
+// GET request
+func (group *RouterGroup) GET(pattern string, handler HandlerFunc) {
+	group.addRoute("GET", pattern, handler)
+}
+
+// POST request
+func (group *RouterGroup) POST(pattern string, handler HandlerFunc) {
+	group.addRoute("POST", pattern, handler)
 }
 
 // Run 监听启动
